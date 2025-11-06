@@ -1,77 +1,166 @@
+require('dotenv').config();
 const express = require('express');
 const app = express();
-const port = 3100;
-
+//const port = 3100;
+const port = process.env.PORT || 3100;
+const {dbMovies, dbDirectors} = require('./database');
 app.use(express.json());
 
-let directors = [
-  { id: 1, name: 'Moh. Jevon Attaillah', birthYear: 2005 },
-  { id: 2, name: 'Mima Hayatun Nikma', birthYear: 1981 },
-  { id: 3, name: 'Ferry Prayitno', birthYear: 1981 }
-];
-
 app.get('/directors', (req, res) => {
-  res.json(directors);
+    const sql = "SELECT * FROM directors ORDER BY id ASC";
+    dbDirectors.all(sql, [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
 });
 
-// get
 app.get('/directors/:id', (req, res) => {
-  const director = directors.find(d => d.id === parseInt(req.params.id));
-  if (director) {
-    res.json(director);
-  } else {
-    res.status(404).json({ error: 'Sutradara tidak ditemukan' });
-  }
+    const sql = "SELECT * FROM directors WHERE id = ?";
+    const id = Number(req.params.id);
+    
+    dbDirectors.get(sql, [id], (err, row) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (row) {
+            res.json(row);
+        } else {
+            res.status(404).json({ error: 'Sutradara tidak ditemukan' });
+        }
+    });
 });
 
-// post
 app.post('/directors', (req, res) => {
-  const { name, birthYear } = req.body || {};
-  if (!name || !birthYear) {
-    return res.status(400).json({ error: 'name dan birthYear wajib diisi' });
-  }
+    const { name, birthYear } = req.body;
+    if (!name || !birthYear) {
+        return res.status(400).json({ error: 'name dan birthYear wajib diisi' });
+    }
 
-  const newDirector = {
-    id: directors.length ? directors[directors.length - 1].id + 1 : 1,
-    name,
-    birthYear
-  };
-  directors.push(newDirector);
-  res.status(201).json(newDirector);
+    const sql = 'INSERT INTO directors (name, birthYear) VALUES (?,?)';
+    dbDirectors.run(sql, [name, birthYear], function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.status(201).json({ id: this.lastID, name, birthYear });
+    });
 });
 
-// put
 app.put('/directors/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const directorIndex = directors.findIndex(d => d.id === id);
+    const { name, birthYear } = req.body;
+    const id = Number(req.params.id);
 
-  if (directorIndex === -1) {
-    return res.status(404).json({ error: 'Sutradara tidak ditemukan' });
-  }
+    if (!name || !birthYear) {
+        return res.status(400).json({ error: 'name dan birthYear wajib diisi' });
+    }
 
-  const { name, birthYear } = req.body || {};
-  if (!name || !birthYear) {
-    return res.status(400).json({ error: 'name dan birthYear wajib diisi' });
-  }
-
-  const updatedDirector = { id, name, birthYear };
-  directors[directorIndex] = updatedDirector;
-  res.json(updatedDirector);
+    const sql = 'UPDATE directors SET name = ?, birthYear = ? WHERE id = ?';
+    dbDirectors.run(sql, [name, birthYear, id], function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Sutradara tidak ditemukan' });
+        }
+        res.json({ id, name, birthYear });
+    });
 });
 
-// delete
 app.delete('/directors/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const directorIndex = directors.findIndex(d => d.id === id);
+    const sql = 'DELETE FROM directors WHERE id = ?';
+    const id = Number(req.params.id);
 
-  if (directorIndex === -1) {
-    return res.status(404).json({ error: 'Sutradara tidak ditemukan' });
-  }
+    dbDirectors.run(sql, id, function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Sutradara tidak ditemukan' });
+        }
+        res.status(204).send();
+    });
+});
 
-  directors.splice(directorIndex, 1);
-  res.status(204).send();
+app.get('/movies', (req, res) => {
+    const sql = "SELECT * FROM movies ORDER BY id ASC";
+    dbMovies.all(sql, [], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json(rows);
+    });
+});
+
+// GET Satu Movie berdasarkan ID
+app.get('/movies/:id', (req, res) => {
+    const sql = "SELECT * FROM movies WHERE id = ?";
+    const id = Number(req.params.id);
+    
+    dbMovies.get(sql, [id], (err, row) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (row) {
+            res.json(row);
+        } else {
+            res.status(404).json({ error: 'Film tidak ditemukan' });
+        }
+    });
+});
+
+// POST Movie (Create)
+app.post('/movies', (req, res) => {
+    const { title, director, year } = req.body;
+    if (!title || !director || !year) {
+        return res.status(400).json({ error: 'title, director, dan year wajib diisi' });
+    }
+
+    const sql = 'INSERT INTO movies (title, director, year) VALUES (?,?,?)';
+    dbMovies.run(sql, [title, director, year], function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.status(201).json({ id: this.lastID, title, director, year });
+    });
+});
+
+// PUT Movie (Update)
+app.put('/movies/:id', (req, res) => {
+    const { title, director, year } = req.body;
+    const id = Number(req.params.id);
+
+    if (!title || !director || !year) {
+        return res.status(400).json({ error: 'title, director, dan year wajib diisi' });
+    }
+
+    const sql = 'UPDATE movies SET title = ?, director = ?, year = ? WHERE id = ?';
+    dbMovies.run(sql, [title, director, year, id], function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Film tidak ditemukan' });
+        }
+        res.json({ id, title, director, year });
+    });
+});
+
+app.delete('/movies/:id', (req, res) => {
+    const sql = 'DELETE FROM movies WHERE id = ?';
+    const id = Number(req.params.id);
+
+    dbMovies.run(sql, id, function(err) {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        if (this.changes === 0) {
+            return res.status(404).json({ error: 'Film tidak ditemukan' });
+        }
+        res.status(204).send();
+    });
 });
 
 app.listen(port, () => {
-  console.log(`Server berjalan di http://localhost:${port}`);
-});
+    console.log(`Server berjalan di http://localhost:${port}`);
+})
