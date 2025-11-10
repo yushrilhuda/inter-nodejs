@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const pool = require('./database'); // PostgreSQL pool
+const pool = require('./database'); // koneksi PostgreSQL
 const authenticateToken = require('./middleware/authMiddleware');
 
 const app = express();
@@ -12,8 +12,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 app.use(cors());
 app.use(express.json());
 
-// === AUTH ROUTES ===
+// === ROOT ROUTE ===
+app.get('/', (req, res) => {
+  res.send('🚀 API is running successfully! PostgreSQL connection active.');
+});
 
+// === AUTH ROUTES ===
 app.post('/auth/register', async (req, res) => {
   const { username, password } = req.body;
 
@@ -61,7 +65,6 @@ app.post('/auth/login', async (req, res) => {
 });
 
 // === MOVIES ROUTES ===
-
 app.get('/movies', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM movies');
@@ -125,7 +128,6 @@ app.delete('/movies/:id', authenticateToken, async (req, res) => {
 });
 
 // === DIRECTORS ROUTES ===
-
 app.get('/directors', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM directors');
@@ -188,5 +190,11 @@ app.delete('/directors/:id', authenticateToken, async (req, res) => {
   }
 });
 
-// Ekspor app untuk digunakan di file lain
+// === EKSPOR UNTUK VERCEL ===
 module.exports = app;
+
+// === OPSIONAL: JALANKAN LOKAL ===
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`✅ Server running on http://localhost:${PORT}`));
+}
