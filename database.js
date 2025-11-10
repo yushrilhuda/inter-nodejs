@@ -13,48 +13,61 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false } // penting untuk koneksi di Vercel / Neon / Supabase
 });
 
-// Tes koneksi database dan buat tabel jika belum ada
-pool.connect()
-  .then(async (client) => {
-    console.log("✅ PostgreSQL connected successfully");
+// Fungsi setup database
+async function setupDatabase() {
+  const client = await pool.connect();
 
-    // Buat tabel movies
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS movies (
-        id SERIAL PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        director_id INT,
-        year INT,
-        genre VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
-    `);
+  try {
+    console.log("✅ PostgreSQL connected successfully");
 
     // Buat tabel directors
     await client.query(`
       CREATE TABLE IF NOT EXISTS directors (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
+        name VARCHAR(100) NOT NULL,
         birth_year INT,
-        nationality VARCHAR(100),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        nationality VARCHAR(100)
       );
     `);
 
-    // Tambahkan relasi (opsional)
+    // Buat tabel movies
     await client.query(`
-      ALTER TABLE movies
-      ADD CONSTRAINT fk_director
-      FOREIGN KEY (director_id)
-      REFERENCES directors(id)
-      ON DELETE SET NULL;
-    `).catch(() => {}); // kalau constraint sudah ada, abaikan errornya
+      CREATE TABLE IF NOT EXISTS movies (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(100) NOT NULL,
+        year INT,
+        genre VARCHAR(50),
+        director_id INT REFERENCES directors(id) ON DELETE SET NULL
+      );
+    `);
 
-    console.log("✅ Tables 'movies' and 'directors' are ready");
+    console.log("✅ Tables ensured: directors & movies");
 
+    // Cek apakah directors kosong
+    const { rows } = await client.query('SELECT COUNT(*) FROM directors');
+    if (parseInt(rows[0].count) === 0) {
+      await client.query(`
+        INSERT INTO directors (name, birth_year, nationality)
+        VALUES
+        ('Christopher Nolan', 1970, 'British-American'),
+        ('Steven Spielberg', 1946, 'American'),
+        ('Hayao Miyazaki', 1941, 'Japanese'),
+        ('Quentin Tarantino', 1963, 'American');
+      `);
+      console.log("✅ Sample directors data inserted");
+    } else {
+      console.log("ℹ️ Directors table already has data");
+    }
+
+  } catch (err) {
+    console.error("❌ Database setup error:", err.stack);
+  } finally {
     client.release();
-  })
-  .catch(err => console.error("❌ Database connection error:", err.stack));
+  }
+}
+
+// Jalankan setup saat pertama kali
+setupDatabase();
 
 // Ekspor pool untuk digunakan di file lain
 module.exports = pool;
